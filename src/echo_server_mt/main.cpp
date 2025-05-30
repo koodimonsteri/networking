@@ -157,8 +157,10 @@ int main() {
         sockaddr_in clientAddr;
         int clientAddrLen = sizeof(clientAddr);
 
+        // Lets not block accept so we can exit gracefully
         u_long nonBlocking = 1;
         ioctlsocket(listenSocket, FIONBIO, &nonBlocking);
+
         SOCKET clientSocket = accept(listenSocket, (sockaddr*)&clientAddr, &clientAddrLen);
         if (clientSocket == INVALID_SOCKET) {
             int errorCode = WSAGetLastError();
