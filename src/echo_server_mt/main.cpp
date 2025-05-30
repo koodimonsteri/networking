@@ -48,7 +48,7 @@ struct SocketTask {
 std::atomic_bool running = true;
 
 void signalHandler(int signal) {
-    std::cout << "\nCaught signal " << signal <<  ", exiting..\n";
+    logf("\nCaught signal ", signal, ", exiting..");
     running = false;
 }
 
@@ -62,16 +62,11 @@ void workerThread(SafeQueue<SocketTask>& taskQueue) {
 
     logf("Started worker ", threadStr);
     while (running) {
-        
-        if (taskQueue.empty()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            continue;
-        }
-
         auto optionalTask = taskQueue.pop();
         
         if (!optionalTask.has_value()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
         }
         SocketTask task = std::move(optionalTask.value());
         SOCKET clientSocket = task.socket;
@@ -121,14 +116,14 @@ int main() {
     Worker threads keep polling the task queue
     and handle new echo tasks when received.
     */
-    std::cout << "Running multithreaded echo server!\n";
+    logf("Running multithreaded echo server!");
     
     std::signal(SIGINT, signalHandler);
     WinSockGuard winSockGuard;
 
     SOCKET listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (listenSocket == INVALID_SOCKET) {
-        std::cerr << "Failed to create socket\n";
+        logcerr("Failed to create socket");
         return 1;
     }
     
@@ -138,18 +133,17 @@ int main() {
     serverAddr.sin_addr.s_addr = inet_addr(LISTEN_ADDR);
 
     if (bind(listenSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
-        std::cerr << "bind() failed with error: " << WSAGetLastError() << "\n";
+        logcerr("bind() failed with error: ", WSAGetLastError());
         closesocket(listenSocket);
         return 1;
     }
     
     if (listen(listenSocket, SOMAXCONN) == SOCKET_ERROR) {
-        std::cerr << "listen() failed with error: " << WSAGetLastError() << "\n";
+        logcerr("listen() failed with error: ", WSAGetLastError());
         closesocket(listenSocket);
         return 1;
     }
-
-    std::cout << "Multithreaded echo server listening on " << LISTEN_ADDR << ":" << LISTEN_PORT << "\n";
+    logf("Multithreaded echo server listening on ", LISTEN_ADDR, ":", LISTEN_PORT);
 
     SafeQueue<SocketTask> echoQueue;
     std::vector<std::thread> workerThreads;
@@ -179,19 +173,19 @@ int main() {
         
         char* clientIp = inet_ntoa(clientAddr.sin_addr);
         int clientPort = ntohs(clientAddr.sin_port);
-        std::cout << "New client connected from " << clientIp << ":" << clientPort << "\n";
+        logf("New client connected from ", clientIp, ":", clientPort);
         
         u_long blockingMode = 0;
         ioctlsocket(clientSocket, FIONBIO, &blockingMode);
         echoQueue.push(SocketTask(clientSocket, clientAddr));
     }
 
-    std::cout << "Waiting for threads to finish...\n";
+    logf("Waiting for threads to finish...");
     for (auto& t : workerThreads) {
         t.join();
     }
 
     closesocket(listenSocket);
-    std::cout << "Multithreaded echo server shut down gracefully.\n";
+    logf("Multithreaded echo server shut down gracefully.");
     return 0;
 }
