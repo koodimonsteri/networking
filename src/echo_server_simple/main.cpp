@@ -23,36 +23,6 @@ void signalHandler(int signal) {
     running = false;
 }
 
-
-bool relayData(SOCKET from, SOCKET to, const char* directionLabel) {
-    char buffer[BUFFER_SIZE];
-    int bytesReceived = recv(from, buffer, BUFFER_SIZE, 0);
-
-    if (bytesReceived < 0) {
-        std::cerr << "recv() from " << directionLabel << " failed with error: " << WSAGetLastError() << "\n";
-        return false;
-    }
-
-    if (bytesReceived == 0) {
-        std::cout << directionLabel << " disconnected.\n";
-        return false;
-    }
-
-    std::string receivedData(buffer, bytesReceived);
-    std::cout << "Received " << bytesReceived << " bytes from " << directionLabel
-              << ": \"" << receivedData << "\"\n";
-
-    int bytesSent = send(to, buffer, bytesReceived, 0);
-    if (bytesSent < 0) {
-        std::cerr << "send() to " << directionLabel << " failed with error: "
-                  << WSAGetLastError() << "\n";
-        return false;
-    }
-
-    return true;
-}
-
-
 int main() {
     std::cout << "Running echo server!\n";
 
