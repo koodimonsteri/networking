@@ -172,6 +172,37 @@ void workerThread(HANDLE iocpHandle) {
 }
 
 
+SOCKET createListenSocket() {
+    SOCKET listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (listenSocket == INVALID_SOCKET) {
+        logcerr("[Main] Failed to create socket");
+        //return 1;
+        exit(1);
+    }
+    
+    sockaddr_in serverAddr{};
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(LISTEN_PORT);
+    serverAddr.sin_addr.s_addr = inet_addr(LISTEN_ADDR);
+
+    if (bind(listenSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+        logcerr("[Main] bind() failed with error: ", WSAGetLastError());
+        closesocket(listenSocket);
+        //return 1;
+        exit(1);
+    }
+    
+    if (listen(listenSocket, SOMAXCONN) == SOCKET_ERROR) {
+        logcerr("[Main] listen() failed with error: ", WSAGetLastError());
+        closesocket(listenSocket);
+        //return 1;
+        exit(1);
+    }
+
+    return listenSocket;
+}
+
+
 int main() {
     /*
     Asynchronous multithreaded echo server using IOCP (I/O Completion Ports)
@@ -184,28 +215,7 @@ int main() {
     std::signal(SIGINT, signalHandler);
     WinSockGuard wsGuard;
 
-    SOCKET listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (listenSocket == INVALID_SOCKET) {
-        logcerr("[Main] Failed to create socket");
-        return 1;
-    }
-    
-    sockaddr_in serverAddr{};
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(LISTEN_PORT);
-    serverAddr.sin_addr.s_addr = inet_addr(LISTEN_ADDR);
-
-    if (bind(listenSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
-        logcerr("[Main] bind() failed with error: ", WSAGetLastError());
-        closesocket(listenSocket);
-        return 1;
-    }
-    
-    if (listen(listenSocket, SOMAXCONN) == SOCKET_ERROR) {
-        logcerr("[Main] listen() failed with error: ", WSAGetLastError());
-        closesocket(listenSocket);
-        return 1;
-    }
+    SOCKET listenSocket = createListenSocket();
 
     logf("[Main] Echo server listening on ", LISTEN_ADDR, ":", LISTEN_PORT);
 
