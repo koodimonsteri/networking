@@ -85,8 +85,6 @@ bool relayData(SOCKET from, SOCKET to, const char* directionLabel) {
 
 
 void workerThread(SafeQueue<ProxyTask>& proxyQueue) {
-    std::thread::id tid = std::this_thread::get_id();
-
     std::ostringstream oss;
     oss << "[Thread " << std::this_thread::get_id() << "] ";
     std::string threadStr = oss.str();
