@@ -176,7 +176,6 @@ SOCKET createListenSocket() {
     SOCKET listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (listenSocket == INVALID_SOCKET) {
         logcerr("[Main] Failed to create socket");
-        //return 1;
         exit(1);
     }
     
@@ -188,14 +187,12 @@ SOCKET createListenSocket() {
     if (bind(listenSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
         logcerr("[Main] bind() failed with error: ", WSAGetLastError());
         closesocket(listenSocket);
-        //return 1;
         exit(1);
     }
     
     if (listen(listenSocket, SOMAXCONN) == SOCKET_ERROR) {
         logcerr("[Main] listen() failed with error: ", WSAGetLastError());
         closesocket(listenSocket);
-        //return 1;
         exit(1);
     }
 
