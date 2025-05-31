@@ -6,6 +6,8 @@ set (CMAKE_CXX_STANDARD 17)
 
 set (SOURCES main.cpp)
 
+add_compile_options(-Wall -Wextra -Werror -Wconversion -Wshadow -pedantic)
+
 add_executable(echo_server_async ${SOURCES})
 
 if (MINGW)

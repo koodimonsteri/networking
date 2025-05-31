@@ -8,8 +8,6 @@
 #include <thread>
 #include <vector>
 
-#pragma comment(lib, "ws2_32.lib")
-
 constexpr int LISTEN_PORT = 8080;
 const char* const LISTEN_ADDR = "127.0.0.1";
 
@@ -102,7 +100,7 @@ void workerThread(HANDLE iocpHandle) {
                 logcerr(threadStr, " GetQueuedCompletionStatus() failed with error: ", GetLastError());
             }
             closesocket(clientSocket);
-            delete CONTAINING_RECORD(overlapped, ClientContext, overlapped);  // or your offset logic
+            delete CONTAINING_RECORD(overlapped, ClientContext, overlapped);
             continue;
         }
 

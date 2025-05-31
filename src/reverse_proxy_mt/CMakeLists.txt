@@ -7,6 +7,8 @@ set (CMAKE_CXX_STANDARD 17)
 set (SOURCES main.cpp)
 set (HEADERS SafeQueue.hpp)
 
+add_compile_options(-Wall -Wextra -Werror -Wconversion -Wshadow -pedantic)
+
 add_executable(reverse_proxy_mt ${SOURCES} ${HEADERS})
 
 if (MINGW)

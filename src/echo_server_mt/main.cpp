@@ -7,8 +7,6 @@
 #include <thread>
 #include "SafeQueue.hpp"
 
-#pragma comment(lib, "ws2_32.lib")
-
 constexpr int LISTEN_PORT = 8080;
 const char* const LISTEN_ADDR = "127.0.0.1";
 constexpr int BUFFER_SIZE = 1024;

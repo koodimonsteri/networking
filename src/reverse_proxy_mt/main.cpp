@@ -8,8 +8,6 @@
 #include <thread>
 #include "SafeQueue.hpp"
 
-#pragma comment(lib, "ws2_32.lib")
-
 constexpr const char* PROXY_ADDR = "127.0.0.1";
 constexpr int PROXY_PORT = 9000;
 
