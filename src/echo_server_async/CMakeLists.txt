@@ -6,7 +6,7 @@ set (CMAKE_CXX_STANDARD 17)
 
 set (SOURCES main.cpp)
 
-add_executable(echo_server_async ${SOURCES} ${HEADERS})
+add_executable(echo_server_async ${SOURCES})
 
 if (MINGW)
     target_link_libraries(echo_server_async ws2_32)
