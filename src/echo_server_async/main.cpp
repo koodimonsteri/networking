@@ -198,6 +198,41 @@ SOCKET createListenSocket() {
 }
 
 
+SOCKET acceptClient(SOCKET listenSocket) {
+    fd_set readSet;
+    FD_ZERO(&readSet);
+    FD_SET(listenSocket, &readSet);
+
+    timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+    
+    int selectResult = select(0, &readSet, nullptr, nullptr, &timeout);
+    if (selectResult == SOCKET_ERROR) {
+        logcerr("[Main] select() failed with error: ", WSAGetLastError());
+        return INVALID_SOCKET;
+    }
+    
+    if (selectResult == 0) {
+        return INVALID_SOCKET;
+    }
+    
+    sockaddr_in clientAddr{};
+    int clientAddrLen = sizeof(clientAddr);
+
+    SOCKET clientSocket = accept(listenSocket, (sockaddr*)&clientAddr, &clientAddrLen);
+    if (clientSocket == INVALID_SOCKET) {
+        logcerr("[Main] accept() failed with error: ", WSAGetLastError());
+        return INVALID_SOCKET;
+    }
+    
+    char* clientIp = inet_ntoa(clientAddr.sin_addr);
+    int clientPort = ntohs(clientAddr.sin_port);
+    logf("[Main] New client connected from ", clientIp, ":", clientPort);
+    return clientSocket;
+}
+
+
 int main() {
     /*
     Asynchronous multithreaded echo server using IOCP (I/O Completion Ports)
@@ -228,36 +263,10 @@ int main() {
     }
 
     while (running) {
-        fd_set readSet;
-        FD_ZERO(&readSet);
-        FD_SET(listenSocket, &readSet);
-
-        timeval timeout;
-        timeout.tv_sec = 1;
-        timeout.tv_usec = 0;
-        
-        int selectResult = select(0, &readSet, nullptr, nullptr, &timeout);
-        if (selectResult == SOCKET_ERROR) {
-            logcerr("[Main] select() failed with error: ", WSAGetLastError());
-            break;
-        }
-        
-        if (selectResult == 0) {
-            continue;
-        }
-        
-        sockaddr_in clientAddr{};
-        int clientAddrLen = sizeof(clientAddr);
-
-        SOCKET clientSocket = accept(listenSocket, (sockaddr*)&clientAddr, &clientAddrLen);
+        SOCKET clientSocket = acceptClient(listenSocket);
         if (clientSocket == INVALID_SOCKET) {
-            logcerr("[Main] accept() failed with error: ", WSAGetLastError());
             continue;
-        }
-        
-        char* clientIp = inet_ntoa(clientAddr.sin_addr);
-        int clientPort = ntohs(clientAddr.sin_port);
-        logf("[Main] New client connected from ", clientIp, ":", clientPort);
+        } 
 
         HANDLE clientIOCPHandle = CreateIoCompletionPort((HANDLE)clientSocket, iocpHandle, (ULONG_PTR)clientSocket, 0);
         if (clientIOCPHandle == nullptr) {
