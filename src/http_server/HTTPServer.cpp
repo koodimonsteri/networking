@@ -40,8 +40,9 @@ void HTTPServer::workerThread() {
         LPOVERLAPPED overlapped;
 
         BOOL result = GetQueuedCompletionStatus(iocpHandle_, &bytesTransferred, &key, &overlapped, INFINITE);
-
+        logf(threadStr, "Completion status: ", result, ", bytesTransferred: ", bytesTransferred);
         if (!result && overlapped == nullptr) {
+            logf(threadStr, "Empty result..");
             break;
         }
 
@@ -51,47 +52,49 @@ void HTTPServer::workerThread() {
         }
 
         IOContext* context = CONTAINING_RECORD(overlapped, IOContext, overlapped);
-        
+
         switch (context->state) {
             case IOType::ACCEPT:
-                handleAccept(context);
+                handleAccept(static_cast<AcceptContext*>(context), threadStr);
                 break;
             case IOType::RECV:
-                handleRecv(context);
+                handleRecv(context, bytesTransferred, threadStr);
                 break;
             case IOType::SEND:
-                handleSend(context);
+                handleSend(context, bytesTransferred, threadStr);
                 break;
             default:
-                logcerr(threadStr, "Incorrect state..?");
+                logcerr(threadStr, "Unknown IOType");
+                break;
         }
     }
 }
 
 
 void HTTPServer::run() {
-    logf("Running HTTPServer");
+    logf("[Main] Running HTTPServer");
     std::signal(SIGINT, signalHandler);
 
     running = true;
-    logf("Initialize IOCP");
+    logf("[Main] Initialize IOCP");
     initIOCP();
 
-    logf("Create listening socket");
+    logf("[Main] Create listening socket");
     listenSocket_ = createListenSocket();
+    CreateIoCompletionPort((HANDLE)listenSocket_, iocpHandle_, 0, 0);
 
-    logf("Init lpfnAcceptEx");
+    logf("[Main] Init lpfnAcceptEx");
     initExtensions();
 
-    logf("Posting initial accepts");
+    logf("[Main] Posting initial accepts");
     const int numAccepts = 10;
     for (int i = 0; i < numAccepts; ++i) {
-        if (!postAccept()) {
-            logcerr("Failed to post initial AcceptEx");
+        if (!postAccept("[Main] ")) {
+            logcerr("[Main] Failed to post initial AcceptEx");
         }
     }
 
-    logf("Creating worker threads");
+    logf("[Main] Creating worker threads");
     for (int i = 0; i < n_threads; i++) {
         workerThreads.emplace_back(&HTTPServer::workerThread, this);
     }
@@ -112,51 +115,51 @@ void HTTPServer::shutdown() {
         return;
     }
     
-    logf("Shutdown HTTPServer");
-    logf("Cleaning up resources..");
+    logf("[Main] Shutdown HTTPServer");
+    logf("[Main] Cleaning up resources..");
     running = false;
     
-    logf("Signal worker threads to shutdown");
+    logf("[Main] Signal worker threads to shutdown");
     for (size_t i = 0; i < workerThreads.size(); ++i) {
         PostQueuedCompletionStatus(iocpHandle_, 0, 0, nullptr);
     }
     
-    logf("Joining worker threads");
+    logf("[Main] Joining worker threads");
     for (auto& t : workerThreads) {
         if (t.joinable()) { t.join(); }
     }
 
     if (listenSocket_ != INVALID_SOCKET) {
-        logf("Closing listening socket");
+        logf("[Main] Closing listening socket");
         closesocket(listenSocket_);
         listenSocket_ = INVALID_SOCKET;
     }
 
     if (iocpHandle_ != nullptr) {
-        logf("Closing IOCP handle");
+        logf("[Main] Closing IOCP handle");
         CloseHandle(iocpHandle_);
         iocpHandle_ = nullptr;
     }
-    logf("HTTPServer shutdown gracefully.");
+    logf("[Main] HTTPServer shutdown gracefully.");
 }
 
 
-bool HTTPServer::postAccept() {
-    SOCKET clientSocket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
-    if (clientSocket == INVALID_SOCKET) {
-        logcerr("WSASocket() failed: ", WSAGetLastError());
+bool HTTPServer::postAccept(std::string threadStr) {
+    AcceptContext* context = new AcceptContext();
+    context->socket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
+    if (context->socket == INVALID_SOCKET) {
+        logcerr(threadStr, "WSASocket() failed: ", WSAGetLastError());
+        delete context;
         return false;
     }
 
-    IOContext* context = new IOContext(IOType::ACCEPT);
-    context->socket = clientSocket;
     ZeroMemory(&context->overlapped, sizeof(OVERLAPPED));
 
     DWORD bytesReceived;
     BOOL result = lpfnAcceptEx(
         listenSocket_,
-        clientSocket,
-        context->buffer,
+        context->socket,
+        context->acceptBuffer,
         0,
         sizeof(SOCKADDR_IN) + 16,
         sizeof(SOCKADDR_IN) + 16,
@@ -165,8 +168,7 @@ bool HTTPServer::postAccept() {
     );
 
     if (!result && WSAGetLastError() != ERROR_IO_PENDING) {
-        logcerr("AcceptEx() failed: ", WSAGetLastError());
-        closesocket(clientSocket);
+        logcerr(threadStr, "AcceptEx() failed: ", WSAGetLastError());
         delete context;
         return false;
     }
@@ -174,62 +176,129 @@ bool HTTPServer::postAccept() {
 }
 
 
-bool HTTPServer::postRecv(IOContext* context) {
+bool HTTPServer::postRecv(Connection* conn, std::string threadStr) {
+    IOContext* context = conn->recvContext;
+    ZeroMemory(&context->overlapped, sizeof(OVERLAPPED));
+
+    WSABUF wsaBuf;
+    wsaBuf.buf = conn->recvBuffer.data();
+    wsaBuf.len = static_cast<ULONG>(conn->recvBuffer.size());
+
     DWORD flags = 0;
     DWORD bytesReceived = 0;
 
-    WSABUF buf;
-    buf.buf = context->buffer;
-    buf.len = sizeof(context->buffer);
-
     int result = WSARecv(
-        context->socket,
-        &buf,
+        conn->socket,
+        &wsaBuf,
         1,
         &bytesReceived,
         &flags,
         &context->overlapped,
-        NULL
+        nullptr
     );
-
+    logf(threadStr, "WSARecv posted for socket: ", conn->socket,
+         ", buffer size: ", wsaBuf.len,
+         ", result: ", result,
+         ", error: ", (result == SOCKET_ERROR ? WSAGetLastError() : 0));
+    
     if (result == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
-        logcerr("WSARecv() failed: ", WSAGetLastError());
+        logcerr(threadStr, "WSARecv() failed: ", WSAGetLastError());
+        delete conn;
         return false;
     }
-
     return true;
 }
 
 
-void HTTPServer::handleAccept(IOContext* context) {
-    if (CreateIoCompletionPort((HANDLE)context->socket, iocpHandle_, (ULONG_PTR)context->socket, 0) == NULL) {
-        logcerr("Failed to associate client socket with IOCP: ", GetLastError());
-        closesocket(context->socket);
-        delete context;
+bool HTTPServer::postSend(Connection* conn, std::string threadStr) {
+    IOContext* context = conn->sendContext;
+    ZeroMemory(&context->overlapped, sizeof(OVERLAPPED));
+
+    WSABUF wsaBuf;
+    wsaBuf.buf = reinterpret_cast<CHAR*>(conn->sendBuffer.data() + conn->sendOffset);
+    wsaBuf.len = static_cast<ULONG>(conn->sendBuffer.size() - conn->sendOffset);
+
+    DWORD bytesSent = 0;
+    int result = WSASend(
+        conn->socket,
+        &wsaBuf,
+        1,
+        &bytesSent,
+        0,
+        &context->overlapped,
+        nullptr
+    );
+    if (result == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
+        logcerr(threadStr, "WSASend() failed: ", WSAGetLastError());
+        delete conn;
+        return false;
+    }
+    return true;
+}
+
+
+void HTTPServer::handleAccept(AcceptContext* acceptContext, std::string threadStr) {
+    SOCKET clientSocket = acceptContext->socket;
+    auto conn = new Connection(clientSocket);
+    acceptContext->socket = INVALID_SOCKET;
+    
+    if (CreateIoCompletionPort((HANDLE)clientSocket, iocpHandle_, (ULONG_PTR)conn, 0) == nullptr) {
+        logcerr(threadStr, "Failed to associate client socket with IOCP: ", GetLastError());
+        closesocket(clientSocket);
+        delete acceptContext;
+        delete conn;
         return;
     }
 
-    logf("New connection accepted");
+    if (setsockopt(clientSocket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
+                   (char*)&listenSocket_, sizeof(listenSocket_)) == SOCKET_ERROR) {
+        logcerr(threadStr, "setsockopt(SO_UPDATE_ACCEPT_CONTEXT) failed: ", WSAGetLastError());
+        closesocket(clientSocket);
+        delete acceptContext;
+        delete conn;
+        return;
+    }
 
-    postRecv(context);
+    logf(threadStr, "New connection accepted");
+    postRecv(conn, threadStr);
 
-    postAccept();
+    delete acceptContext;
+    postAccept(threadStr);
 }
 
 
-void HTTPServer::handleRecv(IOContext* context) {
+void HTTPServer::handleRecv(IOContext* context, DWORD bytesTransferred, std::string threadStr) {
+    Connection* conn = context->connection;
+    if (bytesTransferred == 0) {
+        delete conn;
+        return;
+    }
+    std::string data(conn->recvBuffer.data(), bytesTransferred);
+    logf(threadStr, "Received data: ", data);
 
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nHello";
+    conn->sendBuffer.assign(response.begin(), response.end());
+    conn->sendOffset = 0;
+
+    postSend(conn, threadStr);
 }
 
 
-void HTTPServer::handleSend(IOContext* context) {
+void HTTPServer::handleSend(IOContext* context, DWORD bytesTransferred, std::string threadStr) {
+    Connection* conn = context->connection;
+    conn->sendOffset += bytesTransferred;
 
+    if (conn->sendOffset < conn->sendBuffer.size()) {
+        postSend(conn, threadStr);
+    } else {
+        postRecv(conn, threadStr);
+    }
 }
 
 
 void HTTPServer::initIOCP() {
     iocpHandle_ = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
-    if (iocpHandle_ == NULL) {
+    if (iocpHandle_ == nullptr) {
         logcerr("CreateIoCompletionPort() failed: ", GetLastError());
         throw std::runtime_error("Failed to init IOCP");
     }
@@ -239,7 +308,7 @@ void HTTPServer::initIOCP() {
 void HTTPServer::initExtensions() {
     GUID guidAcceptEx = WSAID_ACCEPTEX;
     DWORD bytes = 0;
-
+    
     int result = WSAIoctl(
         listenSocket_,
         SIO_GET_EXTENSION_FUNCTION_POINTER,
