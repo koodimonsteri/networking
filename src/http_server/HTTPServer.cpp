@@ -2,6 +2,7 @@
 #include <sstream>
 
 #include "HTTPServer.hpp"
+#include "HTTPParser.hpp"
 #include "log.hpp"
 
 HTTPServer* HTTPServer::instance_ = nullptr;
@@ -274,9 +275,15 @@ void HTTPServer::handleRecv(IOContext* context, DWORD bytesTransferred, std::str
         return;
     }
     std::string data(conn->recvBuffer.data(), bytesTransferred);
-    logf(threadStr, "Received data: ", data);
+    HTTPRequest req = HTTPParser::parse(data);
 
-    std::string response = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nHello";
+    std::unordered_map<std::string, std::string> responseHeaders;
+    for (auto& header : req.headers) {
+        responseHeaders[header.first] = header.second;
+    }
+    HTTPResponse resp = makeHttpResponse(200, "OK", responseHeaders, req.body);
+    std::string response = serializeResponse(resp);
+
     conn->sendBuffer.assign(response.begin(), response.end());
     conn->sendOffset = 0;
 
