@@ -1,16 +1,16 @@
 
-Refreshing memory with c++ and diving deeper to some networking stuff :)
+Goofing around with c++, refreshing memory and diving deeper to some networking stuff :)
 
-Built with MSYS MinGW64
+Built with cmake via MSYS MinGW64
 
-for example:\
+Build:\
 cd echo_server\
 mkdir build\
 cd build\
 cmake -G "MinGW Makefiles" ..\
 mingw32-make
 
-or then alias it:\
+or then alias it for convenience:\
 alias make=mingw32-make
 
 
