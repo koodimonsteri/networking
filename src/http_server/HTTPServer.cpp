@@ -277,12 +277,10 @@ void HTTPServer::handleRecv(IOContext* context, DWORD bytesTransferred, std::str
     std::string data(conn->recvBuffer.data(), bytesTransferred);
     HTTPRequest req = HTTPParser::parse(data);
 
-    std::unordered_map<std::string, std::string> responseHeaders;
-    for (auto& header : req.headers) {
-        responseHeaders[header.first] = header.second;
-    }
-    HTTPResponse resp = makeHttpResponse(200, "OK", responseHeaders, req.body);
-    std::string response = serializeResponse(resp);
+    HTTPResponse res;
+    handleRequest(req, res);
+
+    std::string response = serializeResponse(res);
 
     conn->sendBuffer.assign(response.begin(), response.end());
     conn->sendOffset = 0;
@@ -362,3 +360,23 @@ SOCKET HTTPServer::createListenSocket() {
     return listenSocket;
 }
 
+
+void HTTPServer::includeRouter(std::unique_ptr<Router> router) {
+    routers.push_back(std::move(router));
+}
+
+
+void HTTPServer::handleRequest(const HTTPRequest& request, HTTPResponse& response) {
+
+    for (const auto& router : routers) {
+        if (router->handle(request, response)) {
+            return;
+        }
+    }
+    response = makeHttpResponse(
+        404,
+        "Not Found",
+        { {"Content-Type", "text/plain"} },
+        "Route not found"
+    );
+}

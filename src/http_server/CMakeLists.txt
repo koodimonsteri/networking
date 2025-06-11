@@ -4,8 +4,8 @@ project(http_server)
 
 set (CMAKE_CXX_STANDARD 17)
 
-set (SOURCES main.cpp HTTPServer.cpp)
-set (HEADERS log.hpp HTTPServer.hpp HTTPParser.hpp)
+set (SOURCES main.cpp HTTPServer.cpp HTTPParser.cpp CustomerRouter.cpp log.cpp)
+set (HEADERS log.hpp HTTPServer.hpp HTTPParser.hpp Router.hpp Routers.hpp)
 
 #add_compile_options(-Wall -Wextra -Werror -Wconversion -Wshadow -pedantic)
 add_compile_options(-Wall -Werror -Wconversion -Wshadow -pedantic)

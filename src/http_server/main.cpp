@@ -1,5 +1,6 @@
-#include "HTTPServer.hpp"
 #include <string>
+#include "HTTPServer.hpp"
+#include "Routers.hpp"
 
 
 int main(int argc, char* argv[]) {
@@ -17,6 +18,10 @@ int main(int argc, char* argv[]) {
     }
 
     HTTPServer server(address, port);
+
+    auto customerRouter = createCustomerRouter();
+    server.includeRouter(std::move(customerRouter));
+
     server.run();
 
     return 0;

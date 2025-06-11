@@ -4,7 +4,7 @@
 #include <iostream>
 
 
-std::mutex logMutex;
+extern std::mutex logMutex;
 
 //inline std::ostream& operator<<(std::ostream& out, const std::pair<std::string, std::string>& inPair) {
 //    out << inPair.first << ": " << inPair.second;

@@ -8,7 +8,7 @@
 #include <windows.h>
 #include <mswsock.h>
 
-//#include "Router.hpp"
+#include "Router.hpp"
 
 
 struct WinSockGuard {
@@ -106,7 +106,7 @@ class HTTPServer {
         void run();
         void shutdown();
 
-        //void include_router(std::unique_ptr<Router> router);
+        void includeRouter(std::unique_ptr<Router> router);
 
         static void signalHandler(int signal);
 
@@ -117,21 +117,22 @@ class HTTPServer {
         void initIOCP();
         void initExtensions();
         bool postAccept(std::string threadStr);
-        void handleAccept(AcceptContext* context, std::string threadStr);
         bool postRecv(Connection* conn, std::string threadStr);
         bool postSend(Connection* conn, std::string threadStr);
+        void handleAccept(AcceptContext* context, std::string threadStr);
         void handleRecv(IOContext* context, DWORD bytesTransferred, std::string threadStr);
         void handleSend(IOContext* context, DWORD bytesTransferred, std::string threadStr);
         HANDLE iocpHandle_;
         LPFN_ACCEPTEX lpfnAcceptEx = nullptr;  // AcceptEx func reference
 
         void workerThread();
+        void handleRequest(const HTTPRequest& req, HTTPResponse& res);
 
         std::string address_;
         u_short port_;
         SOCKET listenSocket_;
 
-        //std::vector<std::unique_ptr<Router>> routers;
+        std::vector<std::unique_ptr<Router>> routers;
 
         const int n_threads = 2; // maybe as args?
         std::vector<std::thread> workerThreads; 
