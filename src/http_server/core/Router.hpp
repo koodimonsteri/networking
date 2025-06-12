@@ -3,51 +3,37 @@
 #include <string>
 #include <unordered_map>
 #include <functional>
+#include <regex>
 
 #include "HTTPParser.hpp"
 
 
 class Router {
-
     public:
+        Router();
+        Router(const std::string& routePrefix);
+
         using RouteHandler = std::function<void(const HTTPRequest&, HTTPResponse&)>;
+        
+        void get_(const std::string& path, RouteHandler handler);
+        void post_(const std::string& path, RouteHandler handler);
+        void patch_(const std::string& path, RouteHandler handler);
+        void put_(const std::string& path, RouteHandler handler);
+        void delete_(const std::string& path, RouteHandler handler);
 
-        virtual ~Router() = default;
-
-        void get_(const std::string& path, RouteHandler handler) {
-            registerRoute("GET", path, handler);
-        }
-        void post_(const std::string& path, RouteHandler handler) {
-            registerRoute("POST", path, handler);
-        }
-        void patch_(const std::string& path, RouteHandler handler) {
-            registerRoute("PATCH", path, handler);
-        }
-        void put_(const std::string& path, RouteHandler handler) {
-            registerRoute("PUT", path, handler);
-        }
-        void delete_(const std::string& path, RouteHandler handler) {
-            registerRoute("DELETE", path, handler);
-        }
-
-        bool handle(const HTTPRequest& request, HTTPResponse& response) {
-            const std::string key = routeKey(request.method, request.path);
-            auto it = routes.find(key);
-            if (it != routes.end()) {
-                it->second(request, response);
-                return true;
-            }
-            return false;
-        }
+        bool handle(const HTTPRequest& request, HTTPResponse& response);
 
     private:
 
-        void registerRoute(const std::string& method, const std::string& path, RouteHandler handler) {
-            routes[routeKey(method, path)] = handler;
-        }
-        std::string routeKey(const std::string& method, const std::string& path) const {
-            return method + ":" + path;
-        }
+        struct RouteEntry {
+            std::string path;
+            std::regex pathRegex;
+            std::vector<std::string> paramNames;
+            RouteHandler handler;
+        };
 
-        std::unordered_map<std::string, RouteHandler> routes;
+        void registerRoute(const std::string& method, const std::string& path, RouteHandler handler);
+        
+        std::string prefix;
+        std::unordered_map<std::string, std::vector<RouteEntry>> routes;
 };

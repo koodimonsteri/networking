@@ -197,10 +197,10 @@ bool HTTPServer::postRecv(Connection* conn, std::string threadStr) {
         &context->overlapped,
         nullptr
     );
-    logf(threadStr, "WSARecv posted for socket: ", conn->socket,
-         ", buffer size: ", wsaBuf.len,
-         ", result: ", result,
-         ", error: ", (result == SOCKET_ERROR ? WSAGetLastError() : 0));
+    //logf(threadStr, "WSARecv posted for socket: ", conn->socket,
+    //     ", buffer size: ", wsaBuf.len,
+    //     ", result: ", result,
+    //     ", error: ", (result == SOCKET_ERROR ? WSAGetLastError() : 0));
     
     if (result == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
         logcerr(threadStr, "WSARecv() failed: ", WSAGetLastError());
@@ -275,7 +275,7 @@ void HTTPServer::handleRecv(IOContext* context, DWORD bytesTransferred, std::str
         return;
     }
     std::string data(conn->recvBuffer.data(), bytesTransferred);
-    HTTPRequest req = HTTPParser::parse(data);
+    HTTPRequest req = parseHTTPRequest(data);
 
     HTTPResponse res;
     handleRequest(req, res);
