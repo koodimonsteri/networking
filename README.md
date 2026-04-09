@@ -1,5 +1,5 @@
-
-Goofing around with c++, refreshing memory and diving deeper to some networking stuff :)
+Custom multithreaded HTTP server and reverse proxy implemented in C++ using IOCP.\
+This project explores different concurrency models and networking patterns, from simple single-threaded servers to async multithreaded implementations.
 
 Built with cmake via MSYS MinGW64
 
